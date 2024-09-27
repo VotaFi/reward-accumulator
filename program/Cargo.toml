@@ -1,0 +1,19 @@
+[package]
+name = "reward-accumulator-program"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+solana-program.workspace = true
+steel.workspace = true
+reward-accumulator-api.workspace = true
+spl-token.workspace = true
+spl-associated-token-account.workspace = true
+
+[dev-dependencies]
+solana-sdk.workspace = true
+solana-program-test.workspace = true
+termcolor.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]

@@ -1,0 +1,12 @@
+[package]
+name = "reward-accumulator-api"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+solana-program.workspace = true
+spl-associated-token-account.workspace = true
+spl-token.workspace = true
+steel.workspace = true
+bytemuck.workspace = true
+num_enum.workspace = true
