@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "SDK to interact with Vota Reward Accumulator Solana program",
   "main": "index.js",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "dependencies": {
     "@solana/spl-token": "^0.4.8",
     "@solana/web3.js": "^1.95.3",
