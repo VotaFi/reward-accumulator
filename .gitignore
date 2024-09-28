@@ -1,2 +1,5 @@
 /target
 .idea
+test-ledger
+ts-sdk/*.js
+node_modules
