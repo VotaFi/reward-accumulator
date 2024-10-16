@@ -1,5 +1,6 @@
 import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 import {
+  createAssociatedTokenAccountInstruction,
   createTransferInstruction,
   getAssociatedTokenAddressSync,
   TOKEN_PROGRAM_ID,
@@ -17,32 +18,32 @@ const mints = [
 
 export function getUserEscrows(user: PublicKey): PublicKey[] {
   return mints.map((mint) => {
-    const pda_signer = PublicKey.findProgramAddressSync(
+    const pdaSigner = PublicKey.findProgramAddressSync(
       [Buffer.from(TOKEN_AUTH), user.toBuffer()],
       PROGRAM_ID
     )[0];
-    return getAssociatedTokenAddressSync(mint, pda_signer, true);
+    return getAssociatedTokenAddressSync(mint, pdaSigner, true);
   });
 }
 
-export function createClaimRewardInstruction(user: PublicKey, mint: PublicKey) {
-  const pda_signer = PublicKey.findProgramAddressSync(
+export function claimReward(user: PublicKey, mint: PublicKey) {
+  const pdaSigner = PublicKey.findProgramAddressSync(
     [Buffer.from(TOKEN_AUTH), user.toBuffer()],
     PROGRAM_ID
   )[0];
-  const escrow_token_account = getAssociatedTokenAddressSync(
+  const escrowTokenAccount = getAssociatedTokenAddressSync(
     mint,
-    pda_signer,
+    pdaSigner,
     true
   );
-  const user_token_account = getAssociatedTokenAddressSync(mint, user);
+  const userTokenAccount = getAssociatedTokenAddressSync(mint, user);
 
   return new TransactionInstruction({
     keys: [
       { pubkey: user, isSigner: true, isWritable: true },
-      { pubkey: escrow_token_account, isSigner: false, isWritable: true },
-      { pubkey: user_token_account, isSigner: false, isWritable: true },
-      { pubkey: pda_signer, isSigner: false, isWritable: false },
+      { pubkey: escrowTokenAccount, isSigner: false, isWritable: true },
+      { pubkey: userTokenAccount, isSigner: false, isWritable: true },
+      { pubkey: pdaSigner, isSigner: false, isWritable: false },
       { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
     ],
     programId: PROGRAM_ID,
@@ -50,25 +51,47 @@ export function createClaimRewardInstruction(user: PublicKey, mint: PublicKey) {
   });
 }
 
-export function createDistributeRewardInstruction(
+export function createRewardAccount(
+    payer: PublicKey,
+    user: PublicKey,
+    mint: PublicKey
+    ) {
+    const pdaSigner = PublicKey.findProgramAddressSync(
+        [Buffer.from(TOKEN_AUTH), user.toBuffer()],
+        PROGRAM_ID
+    )[0];
+    const associatedTokenAccount = getAssociatedTokenAddressSync(
+        mint,
+        pdaSigner,
+        true
+    );
+    return createAssociatedTokenAccountInstruction(
+        payer,
+        associatedTokenAccount,
+        pdaSigner,
+        mint,
+    );
+ }
+export function sendReward(
   payer: PublicKey,
+  user: PublicKey,
   amount: bigint,
   mint: PublicKey
 ) {
-  const pda_signer = PublicKey.findProgramAddressSync(
-    [Buffer.from(TOKEN_AUTH), payer.toBuffer()],
+  const pdaSigner = PublicKey.findProgramAddressSync(
+    [Buffer.from(TOKEN_AUTH), user.toBuffer()],
     PROGRAM_ID
   )[0];
-  const escrow_token_account = getAssociatedTokenAddressSync(
+  const escrowTokenAccount = getAssociatedTokenAddressSync(
     mint,
-    pda_signer,
+    pdaSigner,
     true
   );
-  const payer_token_account = getAssociatedTokenAddressSync(mint, payer);
+  const payerTokenAccount = getAssociatedTokenAddressSync(mint, payer);
 
   return createTransferInstruction(
-    payer_token_account,
-    escrow_token_account,
+    payerTokenAccount,
+    escrowTokenAccount,
     payer,
     amount
   );
