@@ -1,5 +1,6 @@
 import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 import {
+  createAssociatedTokenAccountIdempotentInstruction,
   createAssociatedTokenAccountInstruction,
   createTransferInstruction,
   getAssociatedTokenAddressSync,
@@ -26,7 +27,7 @@ export function getUserEscrows(user: PublicKey): PublicKey[] {
   });
 }
 
-export function claimReward(user: PublicKey, mint: PublicKey) {
+export function claimReward(user: PublicKey, mint: PublicKey) : TransactionInstruction {
   const pdaSigner = PublicKey.findProgramAddressSync(
     [Buffer.from(TOKEN_AUTH), user.toBuffer()],
     PROGRAM_ID
@@ -36,7 +37,7 @@ export function claimReward(user: PublicKey, mint: PublicKey) {
     pdaSigner,
     true
   );
-  const userTokenAccount = getAssociatedTokenAddressSync(mint, user);
+  const userTokenAccount = getAssociatedTokenAddressSync(mint, user, true);
 
   return new TransactionInstruction({
     keys: [
@@ -51,11 +52,19 @@ export function claimReward(user: PublicKey, mint: PublicKey) {
   });
 }
 
+export function findRewardAccount(user: PublicKey, mint: PublicKey) : PublicKey {
+    const pdaSigner = PublicKey.findProgramAddressSync(
+        [Buffer.from(TOKEN_AUTH), user.toBuffer()],
+        PROGRAM_ID
+    )[0];
+    return getAssociatedTokenAddressSync(mint, pdaSigner, true);
+}
+
 export function createRewardAccount(
     payer: PublicKey,
     user: PublicKey,
     mint: PublicKey
-    ) {
+    ) : TransactionInstruction {
     const pdaSigner = PublicKey.findProgramAddressSync(
         [Buffer.from(TOKEN_AUTH), user.toBuffer()],
         PROGRAM_ID
@@ -65,7 +74,7 @@ export function createRewardAccount(
         pdaSigner,
         true
     );
-    return createAssociatedTokenAccountInstruction(
+    return createAssociatedTokenAccountIdempotentInstruction(
         payer,
         associatedTokenAccount,
         pdaSigner,
@@ -77,7 +86,7 @@ export function sendReward(
   user: PublicKey,
   amount: bigint,
   mint: PublicKey
-) {
+) : TransactionInstruction {
   const pdaSigner = PublicKey.findProgramAddressSync(
     [Buffer.from(TOKEN_AUTH), user.toBuffer()],
     PROGRAM_ID
@@ -87,7 +96,7 @@ export function sendReward(
     pdaSigner,
     true
   );
-  const payerTokenAccount = getAssociatedTokenAddressSync(mint, payer);
+  const payerTokenAccount = getAssociatedTokenAddressSync(mint, payer, true);
 
   return createTransferInstruction(
     payerTokenAccount,
