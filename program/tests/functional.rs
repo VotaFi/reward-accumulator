@@ -103,8 +103,7 @@ async fn test() {
 #[tokio::test]
 async fn test_named_claim() {
     // Create namespace from hash of "votex"
-    let namespace_hash = hash(b"votex");
-    let namespace: [u8; 8] = namespace_hash.as_ref()[0..8].try_into().unwrap();
+    let namespace: String = "votex".to_string();
 
     let mut program_test = ProgramTest::new(
         "reward_accumulator_program",
@@ -122,7 +121,11 @@ async fn test_named_claim() {
             rent_epoch: 0,
         },
     );
-    let signer_pda = Pubkey::find_program_address(&[b"token-auth", &namespace, user.pubkey().as_ref()], &ID).0;
+
+    let namespace_hash = hash(namespace.as_bytes());
+    let namespace_bytes: [u8; 8] = namespace_hash.as_ref()[0..8].try_into().unwrap();
+    println!("Namespace: {:?}", namespace_bytes);
+    let signer_pda = Pubkey::find_program_address(&[b"token-auth", &namespace_bytes, user.pubkey().as_ref()], &ID).0;
     program_test.add_account_with_file_data(
         USDC_MINT,
         4118320394,
