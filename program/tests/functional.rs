@@ -1,11 +1,12 @@
 use reward_accumulator_api::ID;
 use solana_program::hash::hash;
+use solana_program::instruction::{AccountMeta, Instruction};
 use solana_program::program_option::COption;
 use solana_program::program_pack::Pack;
 use solana_program::pubkey;
 use solana_program::pubkey::Pubkey;
 use solana_program_test::{processor, tokio, BanksClient, ProgramTest};
-use solana_sdk::account::Account;
+use solana_sdk::account::{accounts_equal, Account};
 use solana_sdk::signature::{Keypair, Signer};
 use solana_sdk::transaction::Transaction;
 use spl_associated_token_account::get_associated_token_address;
@@ -202,4 +203,119 @@ async fn check_balance(address: Pubkey, mut banks_client: &mut BanksClient, amou
         .unwrap();
     let token_account_data = spl_token::state::Account::unpack(&token_account.data).unwrap();
     assert_eq!(token_account_data.amount, amount);
+}
+
+#[tokio::test]
+async fn test_invalid_account_claim() {
+    let mut program_test = ProgramTest::new(
+        "reward_accumulator_program",
+        ID,
+        processor!(reward_accumulator_program::process_instruction),
+    );
+    let user = Keypair::new();
+    let wrong_owner = Keypair::new();
+    program_test.add_account(
+        user.pubkey(),
+        Account {
+            lamports: 100000000,
+            data: vec![],
+            owner: solana_program::system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+    program_test.add_account(
+        wrong_owner.pubkey(),
+        Account {
+            lamports: 100000000,
+            data: vec![],
+            owner: solana_program::system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+    let signer_pda = Pubkey::find_program_address(&[b"token-auth", user.pubkey().as_ref()], &ID).0;
+    program_test.add_account_with_file_data(
+        USDC_MINT,
+        4118320394,
+        spl_token::id(),
+        "./tests/data/usdc_mint.bin",
+    );
+    // Add USDC escrow account
+    let escrow_token_account_address = get_associated_token_address(&signer_pda, &USDC_MINT);
+    let escrow_token_account = spl_token::state::Account {
+        mint: USDC_MINT,
+        owner: signer_pda,
+        amount: 1_000_000,
+        delegate: COption::None,
+        state: AccountState::Initialized,
+        is_native: COption::None,
+        delegated_amount: 0,
+        close_authority: COption::None,
+    };
+    let mut data: Vec<u8> = vec![0; spl_token::state::Account::get_packed_len()];
+    escrow_token_account.pack_into_slice(&mut data);
+    program_test.add_account(
+        escrow_token_account_address,
+        Account {
+            lamports: 100000000,
+            data,
+            owner: spl_token::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+    // Add USDC user token account
+    let user_token_account_address = get_associated_token_address(&wrong_owner.pubkey(), &USDC_MINT);
+    let user_token_account = spl_token::state::Account {
+        mint: USDC_MINT,
+        owner: wrong_owner.pubkey(),
+        amount: 0,
+        delegate: COption::None,
+        state: AccountState::Initialized,
+        is_native: COption::None,
+        delegated_amount: 0,
+        close_authority: COption::None,
+    };
+    let mut data: Vec<u8> = vec![0; spl_token::state::Account::get_packed_len()];
+    user_token_account.pack_into_slice(&mut data);
+    program_test.add_account(
+        user_token_account_address,
+        Account {
+            lamports: 100000000,
+            data,
+            owner: spl_token::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let (mut banks_client, _, recent_blockhash) = program_test.start().await;
+
+    //let ix = reward_accumulator_api::sdk::claim(wrong_owner.pubkey(), USDC_MINT);
+
+    let ix = Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(wrong_owner.pubkey(), true),
+            AccountMeta::new(escrow_token_account_address, false),
+            AccountMeta::new(user_token_account_address, false),
+            AccountMeta::new_readonly(signer_pda, false),
+            AccountMeta::new_readonly(spl_token::id(), false),
+        ],
+        data: vec![0]
+    };
+    let tx =
+        Transaction::new_signed_with_payer(&[ix], Some(&wrong_owner.pubkey()), &[&wrong_owner], recent_blockhash);
+    check_balance(user_token_account_address, &mut banks_client, 0).await;
+    assert_eq!(user_token_account.owner, wrong_owner.pubkey());
+    check_balance(escrow_token_account_address, &mut banks_client, 1_000_000).await;
+    let result = BanksClient::process_transaction(&mut banks_client, tx)
+        .await;
+    match result {
+        Ok(_) => assert!(false),
+        Err(err) => {
+            assert_eq!(format!("{:?}",err), "TransactionError(InstructionError(0, InvalidAccountData))");
+        }
+    }
 }
