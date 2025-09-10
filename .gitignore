@@ -3,3 +3,6 @@
 test-ledger
 ts-sdk/*.js
 node_modules
+ts-sdk/*.d.ts
+ts-sdk/*.d.ts.map
+ts-sdk/*.map

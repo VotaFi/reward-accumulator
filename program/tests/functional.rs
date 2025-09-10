@@ -1,4 +1,5 @@
 use reward_accumulator_api::ID;
+use solana_program::hash::hash;
 use solana_program::program_option::COption;
 use solana_program::program_pack::Pack;
 use solana_program::pubkey;
@@ -88,6 +89,98 @@ async fn test() {
     let (mut banks_client, _, recent_blockhash) = program_test.start().await;
 
     let ix = reward_accumulator_api::sdk::claim(user.pubkey(), USDC_MINT);
+    let tx =
+        Transaction::new_signed_with_payer(&[ix], Some(&user.pubkey()), &[&user], recent_blockhash);
+    check_balance(user_token_account_address, &mut banks_client, 0).await;
+    check_balance(escrow_token_account_address, &mut banks_client, 1_000_000).await;
+    BanksClient::process_transaction(&mut banks_client, tx)
+        .await
+        .unwrap();
+    check_balance(user_token_account_address, &mut banks_client, 1_000_000).await;
+    check_balance(escrow_token_account_address, &mut banks_client, 0).await;
+}
+
+#[tokio::test]
+async fn test_named_claim() {
+    // Create namespace from hash of "votex"
+    let namespace_hash = hash(b"votex");
+    let namespace: [u8; 8] = namespace_hash.as_ref()[0..8].try_into().unwrap();
+
+    let mut program_test = ProgramTest::new(
+        "reward_accumulator_program",
+        ID,
+        processor!(reward_accumulator_program::process_instruction),
+    );
+    let user = Keypair::new();
+    program_test.add_account(
+        user.pubkey(),
+        Account {
+            lamports: 100000000,
+            data: vec![],
+            owner: solana_program::system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+    let signer_pda = Pubkey::find_program_address(&[b"token-auth", &namespace, user.pubkey().as_ref()], &ID).0;
+    program_test.add_account_with_file_data(
+        USDC_MINT,
+        4118320394,
+        spl_token::id(),
+        "./tests/data/usdc_mint.bin",
+    );
+    // Add USDC escrow account
+    let escrow_token_account_address = get_associated_token_address(&signer_pda, &USDC_MINT);
+    let escrow_token_account = spl_token::state::Account {
+        mint: USDC_MINT,
+        owner: signer_pda,
+        amount: 1_000_000,
+        delegate: COption::None,
+        state: AccountState::Initialized,
+        is_native: COption::None,
+        delegated_amount: 0,
+        close_authority: COption::None,
+    };
+    let mut data: Vec<u8> = vec![0; spl_token::state::Account::get_packed_len()];
+    escrow_token_account.pack_into_slice(&mut data);
+    program_test.add_account(
+        escrow_token_account_address,
+        Account {
+            lamports: 100000000,
+            data,
+            owner: spl_token::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+    // Add USDC user token account
+    let user_token_account_address = get_associated_token_address(&user.pubkey(), &USDC_MINT);
+    let user_token_account = spl_token::state::Account {
+        mint: USDC_MINT,
+        owner: user.pubkey(),
+        amount: 0,
+        delegate: COption::None,
+        state: AccountState::Initialized,
+        is_native: COption::None,
+        delegated_amount: 0,
+        close_authority: COption::None,
+    };
+    let mut data: Vec<u8> = vec![0; spl_token::state::Account::get_packed_len()];
+    user_token_account.pack_into_slice(&mut data);
+    program_test.add_account(
+        user_token_account_address,
+        Account {
+            lamports: 100000000,
+            data,
+            owner: spl_token::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let (mut banks_client, _, recent_blockhash) = program_test.start().await;
+
+    let ix = reward_accumulator_api::sdk::named_claim(user.pubkey(), USDC_MINT, namespace);
     let tx =
         Transaction::new_signed_with_payer(&[ix], Some(&user.pubkey()), &[&user], recent_blockhash);
     check_balance(user_token_account_address, &mut banks_client, 0).await;

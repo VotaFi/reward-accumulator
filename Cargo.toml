@@ -17,9 +17,6 @@ solana-program = "1.18.23"
 solana-sdk = "1.18.23"
 spl-token = { version = "^4", features = ["no-entrypoint"] }
 spl-associated-token-account = { version = "^2.3", features = [ "no-entrypoint" ] }
-thiserror = "1.0.57"
 reward-accumulator-api = { path = "./api", version = "0.1.0" }
 solana-program-test = "1.18.23"
 steel = { version = "1.1.0", features = ["spl"] }
-termcolor = "=1.4.0"
-
