@@ -13,7 +13,12 @@ spl-associated-token-account.workspace = true
 [dev-dependencies]
 solana-sdk.workspace = true
 solana-program-test.workspace = true
-termcolor.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = [
+    'cfg(target_os, values("solana"))',
+]
